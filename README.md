@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Team Name ** |Segmentation Fault|
+| **Team Name** |Segmentation Fault|
 | **Live demo** |https://civicworks-hackathon-team.github.io/civicworks-hackathon/ |
 | **Demo video (2–5 min)** | https://drive.google.com/file/d/1_hwirQDELQebjT7pLqwjwm10ao0IoGZW/view?usp=sharing |
 | **Team** |Yasovardhan ,Sai Teja,Srihari,Pranav Sai Samhit |
