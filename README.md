@@ -106,10 +106,10 @@ The supplied problem statement asks for a GitHub repository, a 2–5 minute demo
 - [x] Source repository structure and setup instructions included.
 - [x] Open-source libraries and external services disclosed in **Tech stack and API disclosures**.
 - [x] GitHub Pages build/deploy workflow included.
-- [ ] Push repository to GitHub and confirm the repository URL.
-- [ ] Enable GitHub Pages and confirm the public deployed URL.
+- [x] Push repository to GitHub: <https://github.com/yasovardhan26-dotcom/civicworks-hackathon>.
+- [x] Enable GitHub Pages and deploy the public website: <https://yasovardhan26-dotcom.github.io/civicworks-hackathon/>. The production build and deploy workflow completed successfully.
 - [ ] Record a real 2–5 minute demonstration and commit it as `demo/civicworks-demo.mp4`. Use [`docs/DEMO_VIDEO_SCRIPT.md`](docs/DEMO_VIDEO_SCRIPT.md). The placeholder folder contains instructions only; it is not a fake video.
-- [ ] Verify the deployed link from a phone and make sure the demo video is viewable.
+- [ ] Test the deployed website on a phone and add/view the demo video after recording.
 
 ### Problem statement
 
