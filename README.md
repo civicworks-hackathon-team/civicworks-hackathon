@@ -1,7 +1,5 @@
 # CivicWorks — Public works, made visible
-
 **CivicTech hackathon project · IIITDM Kancheepuram**
-
 CivicWorks is a mobile-friendly web application concept for making public construction and repair work easier for residents to understand, and easier for ward officers to coordinate. It brings public works, disruption information, responsibilities, updates, and resident reports together in one place.
 
 > **Demo-data notice:** records and coordinates bundled with the project are fictional examples clustered near IIITDM Kancheepuram. They are for demonstrating the interface only, not real government records.
