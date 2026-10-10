@@ -1,0 +1,14 @@
+# Dependencies and build output
+/node_modules/
+/dist/
+
+# Environment files - keep .env.example tracked
+/.env
+/.env.local
+/.env.*.local
+
+# Logs and OS/editor noise
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
