@@ -228,9 +228,26 @@ drop policy if exists "Officers can add project updates" on public.project_updat
 create policy "Officers can add project updates" on public.project_updates
 for insert to authenticated with check (exists (select 1 from public.projects p where p.id = project_id and public.can_manage_ward(p.ward)));
 
+-- A report must name a ward that really has published works. This stops a mistyped ward ("Wrd 12")
+-- from creating a report that no officer is allowed to see.
+create or replace function public.ward_has_projects(ward_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.projects p
+    where pg_catalog.lower(pg_catalog.trim(p.ward)) = pg_catalog.lower(pg_catalog.trim(ward_name))
+  );
+$$;
+revoke all on function public.ward_has_projects(text) from public;
+grant execute on function public.ward_has_projects(text) to anon, authenticated;
+
 drop policy if exists "Anyone can submit a report" on public.reports;
 create policy "Anyone can submit a report" on public.reports
-for insert to anon, authenticated with check (status = 'submitted' and response is null and reviewed_by is null and length(trim(ward)) > 0 and ward <> 'Unassigned');
+for insert to anon, authenticated with check (status = 'submitted' and response is null and reviewed_by is null and length(trim(ward)) > 0 and ward <> 'Unassigned' and public.ward_has_projects(ward));
 drop policy if exists "Officers can read reports" on public.reports;
 create policy "Officers can read reports" on public.reports
 for select to authenticated using (public.can_manage_ward(ward));

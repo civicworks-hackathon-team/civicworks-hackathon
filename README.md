@@ -1,79 +1,112 @@
 # CivicWorks — Public works, made visible
 
-**CivicTech hackathon project · IIITDM Kancheepuram**
+> **Hackathon track:** CivicTech — *Improving Transparency and Coordination in Public Works Projects*
+> **IIITDM Kancheepuram 24-hour Web Development Hackathon**
 
-CivicWorks is a mobile-friendly web application concept for making public construction and repair work easier for residents to understand, and easier for ward officers to coordinate. It brings public works, disruption information, responsibilities, updates, and resident reports together in one place.
+| | |
+|---|---|
+| **Live demo** | https://YOUR-VERCEL-URL.vercel.app  *(replace with the deployed link)* |
+| **Demo video (2–5 min)** | [`demo/DEMO_VIDEO_NAME.mp4`](demo/) or link: *(replace — the video must be inside this repository)* |
+| **Team** | *(add team member names)* |
 
-> **Demo-data notice:** records and coordinates bundled with the project are fictional examples clustered near IIITDM Kancheepuram. They are for demonstrating the interface only, not real government records.
+## The problem
 
-## What the app includes
+Residents see roads dug up, drains opened and pipes laid every day, but the information is scattered across offices and notice boards. Residents cannot tell the purpose, timeline, contractor or responsible authority of a project, or why it is delayed. Departments often work without knowing what others have planned, so the same road can be dug up several times in a few months, and nobody is easily held accountable when work stalls.
 
-- **Nearby works map:** browser geolocation with permission, a 1–50 km search radius, map markers, locality/project search, and status/category filters.
-- **Public project details:** project type, ward and department, contractor, responsible officer, planned and actual dates, expected work hours, progress, estimated cost, reported expenditure, materials, quality notes, source label, updates, delay reasons, resident impact, safety hazards, and traffic/access guidance.
-- **Past, ongoing, delayed and planned work:** residents can check what is happening now and what is expected next.
-- **Resident issue reporting:** report a hazard, delay or quality concern, optionally attach a photo, receive a ticket code, and look up the status and authority response.
-- **Ward officer workspace:** create/update public-work records and review resident reports.
-- **Cross-department coordination warning:** flags work from different departments that is within 350 metres and has overlapping date ranges. It is a review prompt, not proof of a conflict; an officer should verify the exact road segment.
-- **Supabase backend option:** shared project/report records with Supabase Auth, PostgreSQL Row Level Security, ward-specific officer permissions, and private report-photo storage.
-- **Local demo mode:** if Supabase is not configured, the website uses sample data in the current browser's local storage. This makes the prototype easy to run but is not shared storage or real officer authentication.
-- **Responsive English interface:** designed for desktop and mobile browsers.
+## Our solution
 
-## Start on Windows (PowerShell / VS Code)
+CivicWorks gives residents one public place to see nearby works, and gives ward officers one place to publish them and close the loop on complaints:
 
-1. Install Node.js LTS from <https://nodejs.org/>.
-2. Extract this project and open the project folder in VS Code.
-3. Select **Terminal → New Terminal**. Confirm Node is installed:
+- **Citizens:** map + list of works near them, timelines, contractor, budget disclosure, safety notices, and ticketed hazard/delay reports with status tracking.
+- **Officers:** a ward-scoped workspace to publish project records and respond to reports.
+- **Inter-department coordination:** an engine that warns when works by *different* departments overlap in time and are close together (see below).
 
-   ```powershell
-   node -v
-   ```
+## Architecture
 
-4. On Windows PowerShell, use `npm.cmd` if PowerShell blocks `npm.ps1` with an execution-policy error:
-
-   ```powershell
-   npm.cmd install
-   npm.cmd run dev
-   ```
-
-5. Open the local URL Vite prints, normally <http://localhost:5173/>. Keep the terminal open while testing.
-6. Click **Use my live location** and allow permission. Try opening a marker, changing the search radius, filing a sample report and tracking its ticket, and entering **Try officer demo**.
-
-Stop the development server with `Ctrl+C` in the terminal. For a production-build check, run:
-
-```powershell
-npm.cmd run build
+```mermaid
+flowchart LR
+  R[Resident browser] -->|browse, report, track ticket| A[React + Vite app on Vercel]
+  O[Ward officer browser] -->|sign in, publish, review| A
+  A -->|map tiles| OSM[(OpenStreetMap)]
+  A -->|Supabase JS client| S[Supabase: Auth + PostgreSQL + Storage]
+  S -->|Row Level Security: officers limited to their ward| DB[(projects, project_updates, reports, profiles)]
+  A --> E[conflictEngine.js sweep-line check]
 ```
 
-## GitHub repository and public deployment
+If Supabase is not configured, the app runs in **demo mode** with clearly labelled sample data in browser storage.
 
-This repository includes a GitHub Actions workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). After the project is pushed to a **public** GitHub repository on branch `main`, it installs dependencies, builds the site, and deploys the `dist` folder to GitHub Pages. Vite is configured with relative asset paths so the site works at a GitHub Pages project URL.
+## Coordination engine (algorithm)
 
-Follow the complete guide in [`docs/GITHUB_PUBLISHING.md`](docs/GITHUB_PUBLISHING.md). After creating an empty public GitHub repository, you can double-click `publish_to_github.bat` and paste the repository HTTPS URL. The script pushes the source after GitHub sign-in. In short:
+Source: [`src/conflictEngine.js`](src/conflictEngine.js), tests: [`tests/conflictEngine.test.js`](tests/conflictEngine.test.js) (`npm test`), plus [`tests/utils.test.js`](tests/utils.test.js) for the status, ward, validation and throttle rules.
 
-1. Create a public GitHub repository without auto-creating files.
-2. Push this project folder to branch `main`.
-3. In GitHub, select **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-4. Open **Actions**, wait for **Build and deploy CivicWorks to GitHub Pages** to succeed, then copy the public website URL from the deployment summary or **Settings → Pages**.
-5. Test the public HTTPS website on a phone.
+1. Each project's work window is its actual dates if recorded, otherwise its planned dates. Projects with missing or invalid dates are skipped, not guessed.
+2. Windows are **sorted by start date** and swept left to right, keeping an *active* list of windows that have not ended. Every window still active when a new one starts overlaps it in time.
+3. Each overlapping pair is then filtered: **different departments**, not both completed, and within **350 m** (Haversine distance).
+4. Pairs within **150 m** are labelled *likely same stretch*; the rest *adjacent corridor*.
 
-The Pages workflow deploys the sample/demo mode unless Supabase configuration is provided. See the next section before using official records.
+**Complexity:** `O(n log n + k)` time, where `k` is the number of pairs that overlap in time (sorting plus one visit per overlapping pair), and `O(n)` space. A naive all-pairs comparison is `O(n²)` however few projects actually overlap.
 
-## Connect shared data and secure officer accounts (Supabase)
+**Limitations (stated honestly):** projects store a single point, not a road geometry, so the engine cannot prove two works are on the same road segment. Its output is a **warning for officers to verify**, and the UI says so. The sweep runs on the projects inside the user's selected search radius.
 
-This is optional for the local UI demo but required for multiple residents/officers to share records and for the officer permissions to be enforced by the database.
+A mobile-friendly CivicTech prototype for tracking construction and repair work by ward. It brings together planned, ongoing, delayed and completed work, geofenced discovery, resident impacts and safety notices, cost/material disclosure, officer-published progress updates, and resident report tracking.
+
+## What is included
+
+- **Nearby public-works map:** uses the browser's location permission; draws a selectable radius (1, 3, 5, 10, 25 or 50 km) and shows project markers inside that radius.
+- **Public project records:** timelines, current status, progress, planned/actual start and finish dates, published daily work hours, department, ward, contractor, responsible officer, estimated cost, reported spending, materials, quality notes, affected residents, temporary impacts, safety notes, traffic/access plan, update history and source label.
+- **Automatic delay detection:** planned or ongoing work that is past its planned finish date, with no actual finish recorded, is shown as *Delayed* with an explanatory reason. The officer's recorded status is never overwritten.
+- **Past / current / planned work timeline:** grouped into upcoming, ongoing/delayed and completed work.
+- **Resident reports:** submit a hazard, delay or quality issue with an optional photo (JPG/PNG/WebP, up to 2 MB), receive a ticket code, then check its status and any authority response. In connected mode, photo evidence is kept in a private storage bucket accessible to officers.
+- **Officer workspace:** create/edit project records, review/resolve reports and view uploaded evidence.
+- **Secure backend option:** Supabase Auth + PostgreSQL Row Level Security. In connected mode, officers can edit only the ward assigned to their profile; admins can edit all wards. These permissions are enforced in the database, not just in the interface.
+- **Department coordination warning:** flags work from different departments that is within 350 metres and has overlapping date ranges. It asks officers to verify the actual road segment; it is not proof of a conflict.
+- **Demo mode:** if Supabase isn't configured, the app works with clearly labelled sample data stored in the current browser's local storage. It is for testing only and is not a secure multi-user system.
+
+## Important notes before showing it as a real civic service
+
+1. The sample projects and coordinates are **fictional demo records** clustered near IIITDM Kancheepuram so the map is populated for a hackathon demo. They are not verified public works and must not be represented as real government records.
+2. The default map centre is a demo location. Click **Use my live location** and allow the browser permission to centre the map on the user's actual location. The coordinates are kept in browser memory and are not saved to the backend by this app.
+3. Geolocation usually works on `localhost` during development and on an HTTPS website after deployment. It may not work on a plain HTTP public URL.
+4. The dashed circle is a user-selected search radius, not an official ward boundary. This first version filters project points by distance from the user's current location; it does not use a polygon/GIS boundary file.
+5. An officer should publish only information backed by an approved ward record/work order. Mark costs as undisclosed where the authority has not released them, rather than guessing.
+6. Real officers must use individually assigned accounts. Do not share a single officer password with a ward/team.
+
+## Run it on your laptop (demo mode)
+
+You do not need a database to try the sample prototype.
+
+1. Install **Node.js LTS** from <https://nodejs.org/>.
+2. Clone the repository and open the folder in VS Code (**Terminal → New Terminal**):
+
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git
+   cd YOUR-REPO
+   npm install
+   npm run dev
+   ```
+
+3. Optional: run the engine tests with `npm test`.
+4. Open the local URL Vite prints (normally `http://localhost:5173`).
+5. Click **Try officer demo** to test project editing and report management. Changes are stored only in that browser. Click **Reset sample data** to restore the examples.
+
+If `npm` is not recognized, close and reopen VS Code after installing Node.js, then try again.
+
+## Connect the real shared database (Supabase)
+
+Do this when you're ready for officers and residents to see the same records. The local demo mode is **not** safe for real official data.
 
 1. Create a project at <https://supabase.com/>.
-2. In **SQL Editor → New query**, paste and run all of [`supabase/schema.sql`](supabase/schema.sql).
-3. In **Project Settings → API**, copy the Project URL and **anon/public key**. Never put a `service_role` key into browser code.
-4. Copy `.env.example` to `.env.local` in the project root and fill in:
+2. In Supabase, open **SQL Editor → New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql), and run it. This creates the tables, permissions, report lookup function and the profile trigger.
+3. In **Project Settings → API**, copy the Project URL and the **anon/public** key. Do not copy the `service_role` key into the website.
+4. In the `civicworks` project folder, copy `.env.example` to `.env.local` and add the values:
 
    ```dotenv
    VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
    VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
    ```
 
-5. Restart the development server. If both values exist, the app uses Supabase rather than local demo storage.
-6. In Supabase **Authentication → Users**, create/invite the official's individual account. Then assign the official's role and exact ward in **SQL Editor**, replacing the example values:
+5. Stop the development server (`Ctrl+C`) and start it again with `npm run dev`. With both environment variables present, the app switches to Supabase mode.
+6. In Supabase **Authentication → Users**, invite/create the official's account. Public residents should not be given officer credentials. After the account is created, run a role assignment in SQL Editor (replace the sample values). Use the exact same ward label in both the officer profile and project records:
 
    ```sql
    update public.profiles
@@ -84,56 +117,73 @@ This is optional for the local UI demo but required for multiple residents/offic
    );
    ```
 
-   Use `role = 'admin'` only for a trusted administrator. Residents should not receive officer credentials. Use the same ward label in profiles and project records. Database row-level security limits an officer to their assigned ward.
+   Only set `role = 'officer'` for verified officials, and use the exact ward label used by the project records (for example `Ward 12`). Ward-level Row Level Security means that officer can edit projects, review reports and view photo evidence only for the assigned ward; an admin can manage all wards. Use `role = 'admin'` only for a trusted system administrator.
+7. Sign in through **Officer sign in**. A normal resident account can sign in but cannot publish or edit projects unless its profile has an officer/admin role. Residents pick their ward from a list built from published projects (the database also rejects a report whose ward has no published works, so a typo can never hide a report from officers); a report linked to an existing project inherits that project's ward. If you set up the database before this change, re-run `supabase/schema.sql`.
 
-7. To configure the GitHub Pages build, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as repository **Actions secrets**. The public anon key is included in the browser bundle by design; security comes from RLS policies, not from hiding the anon key. Never add the Supabase `service_role` key to a Vite variable or client-side secret.
-8. Add the deployed GitHub Pages URL to Supabase Auth's allowed site/redirect URLs.
+### Before real-world use
 
-### Before using real resident or government data
+- Replace all demo entries with verified project records and real work-site coordinates.
+- Confirm that the responsible department permits publication of the contractor, budget, spend and officer details shown.
+- Add a controlled admin process for inviting/revoking officer accounts, plus audit/export features, backups, a privacy notice, server-side rate limits (the ticket lookup is only throttled in the browser, 5 tries a minute) and moderation/abuse controls. Ward-specific project/report permissions and private photo storage are included in the starter schema.
+- Configure Supabase Auth allowed URLs for your development and deployed URLs.
+- Review the SQL and privacy design with the relevant authority before collecting personal contact details. Reports do not expose contact details or private image paths through the public ticket lookup.
 
-- Replace every sample project with verified records and exact work-site coordinates.
-- Confirm authority approval for contractor, cost, spending, officer and other published details. Do not guess missing information; mark it as not disclosed/not recorded.
-- Review the SQL, privacy notice, retention policy and public ticket lookup with the relevant authority. Add rate limits, abuse controls, backups, audit/export procedures and a safe process for revoking officials' access.
-- Public geolocation is opt-in. The app uses coordinates in browser memory to filter map results and does not save the user's live location to the project database.
-- The drawn radius is a distance filter, not an official ward/geofence polygon. Use verified ward boundary GIS data before using this for administrative boundary decisions.
-- The demo officer mode is intentionally not authentication. Never present it as real, secure government login.
+## Deploy it as a public website
 
-## Hackathon submission checklist
+A straightforward option for this Vite app is **Vercel** or **Netlify**:
 
-The supplied problem statement asks for a GitHub repository, a 2–5 minute demo video in that repository, a README with the problem/solution/setup, disclosed open-source libraries/APIs, and an accessible deployment.
+1. Create a GitHub repository and upload the contents of this folder (not `node_modules`).
+2. Import the repository into Vercel/Netlify.
+3. Set the build command to `npm run build` and output directory to `dist`.
+4. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the hosting provider's environment-variable settings. Don't add `.env.local` to GitHub.
+5. Deploy, then add the deployed website URL to Supabase Auth's allowed redirect/site URL settings.
+6. Open the deployed HTTPS URL on a phone and test location permission, the radius selector, resident report submission, officer login, project updates and ticket lookup.
 
-- [x] Problem statement and solution documented below.
-- [x] Source repository structure and setup instructions included.
-- [x] Open-source libraries and external services disclosed in **Tech stack and API disclosures**.
-- [x] GitHub Pages build/deploy workflow included.
-- [x] Push repository to GitHub: <https://github.com/yasovardhan26-dotcom/civicworks-hackathon>.
-- [x] Enable GitHub Pages and deploy the public website: <https://yasovardhan26-dotcom.github.io/civicworks-hackathon/>. The production build and deploy workflow completed successfully.
-- [ ] Record a real 2–5 minute demonstration and commit it as `demo/civicworks-demo.mp4`. Use [`docs/DEMO_VIDEO_SCRIPT.md`](docs/DEMO_VIDEO_SCRIPT.md). The placeholder folder contains instructions only; it is not a fake video.
-- [ ] Test the deployed website on a phone and add/view the demo video after recording.
+A public hosting link makes the demo accessible to judges, but the Supabase setup is what makes data shared and officer edits protected.
 
-### Problem statement
+## Feature coverage checklist
 
-**Improving Transparency and Coordination in Public Works Projects.** Residents often cannot tell what work is happening nearby, who is responsible, how long disruption will last, why a schedule slipped, or how to follow up on a hazard. Departments may also schedule work on the same road without being aware of one another's plans.
+| Need | Included |
+|---|---|
+| Start/finish dates and progress | Planned/actual start & finish, progress, updates |
+| Temporary impact and safety hazards | Affected groups, impacts, safety notices, traffic/access plan |
+| Transparency | Estimate, reported spend, materials, quality notes, contractor, responsible officer, source label |
+| Department ownership | Department and ward fields |
+| Past / ongoing / future | Timeline groups and status filters |
+| Resident feedback | Ticketed report form and authority response/status tracking |
+| Nearby location-based discovery | Browser geolocation, radius selector, map circle and markers |
+| Officer-only editing | Supabase Auth + RLS (when configured); local-only demo mode otherwise |
+| Department coordination | Flags nearby work from different departments with overlapping dates for human verification |
 
-### Proposed solution
+## Stack
 
-CivicWorks is a single map-and-timeline experience for planned, ongoing, delayed and completed public works. Residents can see work dates, status, progress, cost/material disclosures, responsible departments, expected disruption and safety information, and can file trackable reports. Ward officers can update records and respond to residents. A cross-department warning helps officials identify nearby projects with overlapping date ranges for further review.
+- React + Vite
+- Leaflet + OpenStreetMap tiles
+- Supabase Auth + PostgreSQL + Row Level Security (optional backend for the demo, required for shared/secure records)
 
-## Tech stack and API disclosures
+## Open-source libraries and services used (disclosure)
 
-- **React** and **React DOM** — interface and client rendering.
-- **Vite** and **@vitejs/plugin-react** — development server and production build.
-- **Leaflet** and **React Leaflet** — interactive map and map layers.
-- **OpenStreetMap tiles/data** — map display; attribution is required and the tile usage policy applies.
-- **Lucide React** — interface icons.
-- **Supabase JavaScript client** and optional **Supabase Auth, PostgreSQL, Row Level Security and Storage** — shared data and officer authentication when configured.
-- **Browser Geolocation API** — asks the resident's browser for opt-in live location; coordinates are used to centre/filter the map.
-- **Node.js/npm** — development/build tooling.
+| Library / service | Purpose |
+|---|---|
+| React, React DOM | UI |
+| Vite, @vitejs/plugin-react | Build tooling and dev server |
+| Leaflet, react-leaflet | Interactive map |
+| lucide-react | Icons |
+| @supabase/supabase-js | Optional backend client (Auth, PostgreSQL, Storage) |
+| OpenStreetMap | Map tiles and data (see attribution below) |
+| Google Fonts (DM Sans, Manrope) | Typography |
+| Node.js built-in test runner | Engine tests |
 
-No connection to a real municipal/government system is included. The default sample records are fictional. The MIT license is included in [`LICENSE`](LICENSE).
+All dependencies are listed with exact versions in `package.json` / `package-lock.json`.
 
-Map attribution and policy: <https://www.openstreetmap.org/copyright> and <https://operations.osmfoundation.org/policies/tiles/>.
+## AI-assistance disclosure
 
-## Demo video
+*(Team: fill this in accurately, for example which AI tools were used and for what, and confirm it matches the organisers' rules.)*
 
-Record and include the real app demonstration in the repository. Use [`docs/DEMO_VIDEO_SCRIPT.md`](docs/DEMO_VIDEO_SCRIPT.md) for a 3-minute storyboard and save the video as `demo/civicworks-demo.mp4`. Do not claim that the demo mode is secure officer authentication or that fictional records are real government works.
+## License / data attribution
+
+Map tiles and map data are provided by OpenStreetMap contributors. See <https://www.openstreetmap.org/copyright>. Use of the underlying service is subject to OpenStreetMap's tile usage policy.
+
+## Code layout
+
+`src/App.jsx` holds state and data access; `src/components/` has the pages and modals; `src/utils.js` and `src/db.js` hold the pure helpers and database mapping; `src/conflictEngine.js` is the coordination algorithm.
