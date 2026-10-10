@@ -5,9 +5,10 @@
 
 | | |
 |---|---|
-| **Live demo** | https://YOUR-VERCEL-URL.vercel.app  *(replace with the deployed link)* |
-| **Demo video (2–5 min)** | [`demo/DEMO_VIDEO_NAME.mp4`](demo/) or link: *(replace — the video must be inside this repository)* |
-| **Team** | *(add team member names)* |
+| **Team Name ** |Segmentation Fault|
+| **Live demo** |https://civicworks-hackathon-team.github.io/civicworks-hackathon/ |
+| **Demo video (2–5 min)** | https://drive.google.com/file/d/1_hwirQDELQebjT7pLqwjwm10ao0IoGZW/view?usp=sharing |
+| **Team** |Yasovardhan ,Sai Teja,Srihari,Pranav Sai Samhit |
 
 ## The problem
 
